@@ -162,12 +162,10 @@ expand_sh_flag(return_on_error) ->
      end};
 expand_sh_flag({abort_on_error, Message}) ->
     {error_handler,
-     fun(_Command, _Rc) ->
-             ?ABORT(Message, [])
-     end};
+     log_msg_and_abort(Message)};
 expand_sh_flag(abort_on_error) ->
     {error_handler,
-     fun log_and_abort/2};
+     fun log_rc_and_abort/2};
 expand_sh_flag(use_stdout) ->
     {output_handler,
      fun(Line, Acc) ->
@@ -184,8 +182,14 @@ expand_sh_flag({cd, _CdArg} = Cd) ->
 expand_sh_flag({env, _EnvArg} = Env) ->
     {port_settings, Env}.
 
--spec log_and_abort(string(), integer()) -> no_return().
-log_and_abort(Command, Rc) ->
+-spec log_msg_and_abort(string()) -> fun((string(), integer()) -> no_return()).
+log_msg_and_abort(Message) ->
+    fun(_, _) ->
+            ?ABORT(Message, [])
+    end.
+
+-spec log_rc_and_abort(string(), integer()) -> no_return().
+log_rc_and_abort(Command, Rc) ->
     ?ABORT("~s failed with error: ~w\n", [Command, Rc]).
 
 sh_loop(Port, Fun, Acc) ->
