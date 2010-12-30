@@ -30,6 +30,8 @@
 
 -export([compile/2]).
 
+-export([dotlfe_compile/3]).
+
 -include("rebar.hrl").
 
 %% ===================================================================
@@ -41,12 +43,32 @@ compile(Config, _AppFile) ->
     rebar_base_compiler:run(Config, FirstFiles, "src", ".lfe", "ebin", ".beam",
                             fun compile_lfe/3).
 
+%% ===================================================================
+%% .lfe Compilation API (externally used by only eunit)
+%% ===================================================================
+
+dotlfe_compile(Config, OutDir, Sources) ->
+    FirstFiles = rebar_config:get_list(Config, lfe_first_files, []),
+    LfeOpts = [{outdir, OutDir}] ++ rebar_config:get(Config, lfe_opts, []) ++
+        [{i, "include"}, report, return],
+    ?DEBUG("lfe_opts ~p~n",[LfeOpts]),
+    rebar_base_compiler:run(Config, FirstFiles, Sources,
+                            fun(S, _C) ->
+                                    compile_lfe(S, LfeOpts)
+                            end),
+    ok.
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
 compile_lfe(Source, _Target, Config) ->
+    LfeOpts = rebar_config:get_list(Config, lfe_opts, []) ++
+        [{i, "include"}, {outdir, "ebin"}, report, return],
+    ?DEBUG("lfe_opts ~p~n",[LfeOpts]),
+    compile_lfe(Source, LfeOpts).
+
+compile_lfe(Source, LfeOpts) ->
     case code:which(lfe_comp) of
         non_existing ->
             ?CONSOLE(
@@ -58,9 +80,7 @@ compile_lfe(Source, _Target, Config) ->
                  "===============================================~n~n">>, []),
             ?FAIL;
         _ ->
-            Opts = [{i, "include"}, {outdir, "ebin"}, report, return] ++
-                rebar_config:get_list(Config, lfe_opts, []),
-            case lfe_comp:file(Source,Opts) of
+            case lfe_comp:file(Source, LfeOpts) of
                 {ok, _, []} -> ok;
                 _ -> ?FAIL
             end

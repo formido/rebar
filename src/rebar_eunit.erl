@@ -91,17 +91,29 @@ eunit(Config, AppFile) ->
     %% rebar.config option: {eunit_compile_opts, [{src_dirs, ["test"]}]}
     TestErls = rebar_utils:find_files("test", ".*\\.erl\$"),
 
+    %% Obtain all the test LFE modules for inclusion in the compile stage
+    TestLfes = rebar_utils:find_files("test", ".*\\.lfe\$"),
+
+    %% Obtain src/{*.erl, *.lfe} files
+    SrcErls = rebar_utils:find_files("src", ".*\\.erl\$"),
+
     %% Copy source files to eunit dir for cover in case they are not directly
     %% in src but in a subdirectory of src. Cover only looks in cwd and ../src
     %% for source files.
-    SrcErls = rebar_utils:find_files("src", ".*\\.erl\$"),
-    ok = rebar_file_utils:cp_r(SrcErls ++ TestErls, ?EUNIT_DIR),
+    case SrcErls ++ TestErls of
+        [] ->
+            %% List can be empty in a pure LFE project
+            ok;
+        Sources ->
+            ok = rebar_file_utils:cp_r(Sources, ?EUNIT_DIR)
+    end,
 
-    %% Compile erlang code to ?EUNIT_DIR, using a tweaked config
+    %% Compile erlang and lfe code to ?EUNIT_DIR, using a tweaked config
     %% with appropriate defines for eunit, and include all the test modules
     %% as well.
-    rebar_erlc_compiler:doterl_compile(eunit_config(Config),
-                                       ?EUNIT_DIR, TestErls),
+    EUnitConfig = eunit_config(Config),
+    ok = rebar_erlc_compiler:doterl_compile(EUnitConfig, ?EUNIT_DIR, TestErls),
+    ok = rebar_lfe_compiler:dotlfe_compile(EUnitConfig, ?EUNIT_DIR, TestLfes),
 
     %% Build a list of all the .beams in ?EUNIT_DIR -- use this for cover
     %% and eunit testing. Normally you can just tell cover and/or eunit to
